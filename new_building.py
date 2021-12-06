@@ -119,13 +119,7 @@ print(type(test_Y), test_Y.shape)
 
 
 # ================================================= LSTM Structure =====================================================
-# TODO: trying to optimize the net accuracy...
-#  1) change lr (prova con 0.9)
-#  2) add lstm layers ( add another h, c?)
-#  3) add num_hidden (default:5; prova con 8)
-#  3) change the batch size
-#  4) put more neurons in lstm layers
-#  5) add a GRU layer in the net
+# TODO: trying to use an ELU activation function
 
 class LSTM(nn.Module):
 
@@ -171,7 +165,7 @@ class LSTM(nn.Module):
 
 # HYPER PARAMETERS
 lookback = 48
-lr = 0.008 #0.005 #0.009
+lr = 0.009 #0.005 #0.009
 num_layers = 5
 num_hidden = 15
 
@@ -237,8 +231,9 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
 
     return TRAIN_LOSS, VAL_LOSS
 
-epochs = 80
-train_loss, val_loss = train_model(lstm, epochs=epochs, train_dl=train_dl, val_dl=val_dl, optimizer=optimizer, criterion=criterion, lr_scheduler='', mode = '')
+epochs = 130
+train_loss, val_loss = train_model(lstm, epochs=epochs, train_dl=train_dl, val_dl=val_dl, optimizer=optimizer,
+                                   criterion=criterion, lr_scheduler='', mode='')
 
 # Plot to verify validation and train loss, in order to avoid underfitting and overfitting
 plt.plot(train_loss,'--',color='r', linewidth = 1, label = 'Train Loss')
@@ -246,23 +241,23 @@ plt.plot(val_loss,color='b', linewidth = 1, label = 'Validation Loss')
 plt.yscale('log')
 plt.ylabel('Loss (MSE)')
 plt.xlabel('Epoch')
-plt.xticks(np.arange(0, int(epochs), 5))
+plt.xticks(np.arange(0, int(epochs), 10))
 plt.grid(b=True, which='major', color='#666666', linestyle='-')
 plt.minorticks_on()
 plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.title("Multi-steps training VS Validation loss", size=15)
 plt.legend()
-# plt.savefig('immagini/2015/1_month/LSTM_Train_VS_Val_LOSS({}_epochs).png'.format(epochs))
+# plt.savefig('immagini/2015/1_month/LSTM_Train_VS_Val_LOSS({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 
 # ____________________________________________________SAVE THE MODEL____________________________________________________
 period = 'month'
-# torch.save(lstm.state_dict(), 'train_on_'+ period + '_' + year + '.pth')
+torch.save(lstm.state_dict(), 'train_on_' + period + '_' + year + '_lr_' + str(lr) + '.pth')
 
 # Load a model
 model = LSTM(num_classes=n_outputs, input_size=n_features, hidden_size=num_hidden, num_layers=num_layers)
-model.load_state_dict(torch.load('train_on_' + period + '_' + year + '.pth'))
+model.load_state_dict(torch.load('train_on_month_2015_lr_0.009.pth'))
 
 
 # __________________________________________________6h PREDICTION TESTING_______________________________________________
@@ -308,7 +303,7 @@ def test_model(model, test_dl, maxT, minT, batch_size):
     return y_pred, y_lab
 
 
-y_pred, y_lab = test_model(model=model, test_dl=test_dl, maxT=max_T, minT=min_T, batch_size=test_batch_size)
+y_pred, y_lab = test_model(model=lstm, test_dl=test_dl, maxT=max_T, minT=min_T, batch_size=test_batch_size)
 
 
 flatten = lambda l: [item for sublist in l for item in sublist]
@@ -327,7 +322,7 @@ plt.xlim(-0.6, 0.6)
 plt.title('LSTM model 6h prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-# plt.savefig('immagini/2015/1_month/LSTM_model_error.png')
+# plt.savefig('immagini/2015/1_month/LSTM_model_error(lr_{}).png'.format(lr))
 plt.show()
 
 
@@ -341,7 +336,7 @@ plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
 plt.title("6h prediction: Real VS predicted temperature", size=15)
 plt.legend()
-# plt.savefig('immagini/2015/1_month/LSTM_real_VS_predicted_temperature.png')
+# plt.savefig('immagini/2015/1_month/LSTM_real_VS_predicted_temperature(lr_{}).png'.format(lr))
 plt.show()
 
 
@@ -365,7 +360,7 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlabel('Real Temperature [°C]')
 plt.ylabel('Predicted Temperature [°C]')
 plt.title("6h prediction: Prediction distribution", size=15)
-# plt.savefig('immagini/2015/1_month/LSTM_prediction_distribution.png')
+# plt.savefig('immagini/2015/1_month/LSTM_prediction_distribution(lr_{}).png'.format(lr))
 plt.show()
 
 
@@ -388,7 +383,7 @@ df_2016 = normalization(df_2016)
 # df_2016 = df_2016[:13248] # Solo Gennaio 2016
 # ______________________________________Datasets_preprocessing__________________________________________________________
 period = 6
-df_2016, l_train, l_val = define_period(df_2016, time='week')
+df_2016, l_train, l_val = define_period(df_2016, time='month')
 
 # l_train = train_period(df_2016, 'week')
 # l_val = int(l_train + 0.3*len(df_2016))
@@ -438,10 +433,10 @@ n_features = test_X1.shape[2]
 
 
 # ___________________________________________________TESTING____________________________________________________________
-test_batch_size1 = 60
+test_batch_size1 = 120
 test_data1 = TensorDataset(test_X1, test_Y1)
 test_dl1 = DataLoader(test_data1, shuffle=False, batch_size=test_batch_size1, drop_last=True)
-test_losses1 = []
+# test_losses1 = []
 # h = lstm.init_hidden(val_batch_size)
 
 y_pred1, yreal1 = test_model(model, test_dl1, max_T1, min_T1, test_batch_size1)
@@ -463,7 +458,7 @@ plt.xlim(-0.6, 0.6)
 plt.title('2001 testing: model prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-plt.savefig('immagini/2015/1_year/test_on_jen_2016/LSTM_model_error.png')
+# plt.savefig('immagini/2015/1_month/test_on_1_month_2016/LSTM_model_error(lr_{}).png'.format(lr))
 plt.show()
 
 
@@ -477,7 +472,7 @@ plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
 plt.title("2001 testing: real VS predicted temperature", size=15)
 plt.legend()
-plt.savefig('immagini/2015/1_year/test_on_jen_2016/LSTM_real_VS_predicted_temperature.png')
+# plt.savefig('immagini/2015/1_month/test_on_1_month_2016/LSTM_real_VS_predicted_temperature(lr_{}).png'.format(lr))
 plt.show()
 
 
@@ -500,7 +495,7 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlabel('Real Temperature [°C]')
 plt.ylabel('Predicted Temperature [°C]')
 plt.title("2001 testing: prediction distribution", size=15)
-plt.savefig('immagini/2015/1_year/test_on_jen_2016/LSTM_prediction_distribution.png')
+# plt.savefig('immagini/2015/1_month/test_on_1_month_2016/LSTM_prediction_distribution(lr_{}).png'.format(lr))
 plt.show()
 
 

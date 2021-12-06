@@ -187,7 +187,7 @@ model.load_state_dict(torch.load('train_on_' + period + '_' + year + '.pth'))
 # DEFINE CRITERION, OPTIMIZER WITH SMALLER LR RATE AND LR SCHEDULER_____________________________________________________
 criterion1 = torch.nn.MSELoss()
 # optimizer1 = torch.optim.SGD(model.parameters(), lr=lr)
-lr1 = 0.004
+lr1 = 0.003
 optimizer1 = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr1) # solo se vengono freezati alcuni layers
 # Decay LR (learning rate) by a factor of 0.1 every 7 epochs
 lr_scheduler = lr_scheduler.StepLR(optimizer1, step_size=7, gamma=0.1)
@@ -260,7 +260,7 @@ plt.show()
 
 
 # ____________________________________________________SAVE THE MODEL____________________________________________________
-torch.save(model.state_dict(), 'TL(2016_high)_train_on_' + period + '_' + year + 'lr_' + lr1 + '.pth')
+# torch.save(model.state_dict(), 'TL(2016_high)_train_on_' + period + '_' + year + '_lr_' + str(lr1) + '.pth')
 
 # ______________________________________________________________________________________________________________________
 
@@ -325,7 +325,7 @@ plt.xlim(-0.6, 0.6)
 plt.title('2001 testing: model prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year +'/1_'+ period + '_' + year +'/LSTM_model_error({}_epochs_lr1_{}).png'.format(epochs1, lr1))
+# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_model_error({}_epochs_lr1_{}).png'.format(epochs1, lr1))
 plt.show()
 
 
@@ -339,7 +339,7 @@ plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
 plt.title("2001 testing: real VS predicted temperature", size=15)
 plt.legend()
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year +'/LSTM_real_VS_predicted_temperature({}_epochs_lr1_{}).png'.format(epochs1, lr1))
+# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_real_VS_predicted_temperature({}_epochs_lr1_{}).png'.format(epochs1, lr1))
 plt.show()
 
 

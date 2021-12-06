@@ -1,0 +1,12 @@
+MULTISTEP DEF
+- deployare rete per un edificio con classe energetica differente (hight), stesso clima e anno:
+
+- analizzare le differenze tra 1) e quella già fatta:
+	2015 e 2015_high
+
+- 3 benchmark:
+	1. rete trainata su un anno del nuovo edificio
+	2. rete trainata su un mese del nuovo edificio
+	3. rete trainata su una settimana del nuovo edificio
+
+- plottare le performance:test su Gennaio 2016

@@ -43,7 +43,7 @@ import csv
 from csv import DictWriter
 import xlsxwriter
 import openpyxl
-from functions import import_file, min_max_T, normalization, create_data, split_multistep_sequences, split_sequences, mean_absolute_percentage_error
+from functions import import_file, min_max_T, normalization, create_data, split_multistep_sequences, split_sequences, mean_absolute_percentage_error, mean_absolute_percentage_error_for_tensors
 
 # =========================================== NEW DATASET ==============================================================
 
@@ -174,23 +174,20 @@ n_outputs = 6
 
 
 # ____________________________________________________LOAD THE MODEL____________________________________________________
-# #Save the model
-# torch.save(lstm.state_dict(), 'train_on_'+ time +'_'+year+'_high.pth')
-
-# Load a model
 model = LSTM(num_classes=n_outputs, input_size=n_features, hidden_size=num_hidden, num_layers=num_layers)
 period = 'month'
 year = '2015'
-model.load_state_dict(torch.load('train_on_' + period + '_' + year + '.pth'))
+model.load_state_dict(torch.load('train_on_month_2015_lr_0.009.pth'))
 
-
+# TODO: abbassare il batch size ed aumentare le epoche
 # DEFINE CRITERION, OPTIMIZER WITH SMALLER LR RATE AND LR SCHEDULER_____________________________________________________
 criterion1 = torch.nn.MSELoss()
 # optimizer1 = torch.optim.SGD(model.parameters(), lr=lr)
 lr1 = 0.003
-optimizer1 = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr1) # solo se vengono freezati alcuni layers
+optimizer1 = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr1)
 # Decay LR (learning rate) by a factor of 0.1 every 7 epochs
-lr_scheduler = lr_scheduler.StepLR(optimizer1, step_size=7, gamma=0.1)
+step_size1 = 7
+lr_scheduler = lr_scheduler.StepLR(optimizer1, step_size=step_size1, gamma=0.1, verbose=True) # gamma=0.1 by default
 
 
 # training function
@@ -200,7 +197,8 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
     # initialize the training loss and the validation loss
     TRAIN_LOSS = []
     VAL_LOSS = []
-
+    MAPE_TRAIN = []
+    MAPE_VAL = []
     for t in range(epochs):
 
         # TRAINING LOOP
@@ -216,7 +214,9 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
             loss_c.backward()
             optimizer.step()
             loss.append(loss_c.item())
+            mape_train = mean_absolute_percentage_error_for_tensors(label.float(), output)
         TRAIN_LOSS.append(np.sum(loss)/train_batch_size)
+        MAPE_TRAIN.append(mape_train)
         if mode == 'tuning':
             lr_scheduler.step()
         # print("Epoch: %d, training loss: %1.5f" % (train_episodes, LOSS[-1]))
@@ -229,16 +229,19 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
             val_output, h = model(inputs.float(), h)
             #val_labels = labels.unsqueeze(1) # CAPIRE SE METTERLO O NO
             val_loss_c = criterion(val_output, labels.float())
+            mape_val = mean_absolute_percentage_error_for_tensors(labels.float(), val_output)
             val_loss.append(val_loss_c.item())
         # VAL_LOSS.append(val_loss.item())
         VAL_LOSS.append(np.sum(val_loss)/val_batch_size)
-        print('Epoch : ', t, 'Training Loss : ', TRAIN_LOSS[-1], 'Validation Loss :', VAL_LOSS[-1])
+        MAPE_VAL.append(mape_val)
+        print('Epoch : ', t, 'Training Loss : ', TRAIN_LOSS[-1], 'Validation Loss :', VAL_LOSS[-1],
+              'Training MAPE :', MAPE_TRAIN[-1], 'Validation MAPE :', MAPE_VAL[-1])
 
-    return TRAIN_LOSS, VAL_LOSS
+    return TRAIN_LOSS, VAL_LOSS, MAPE_TRAIN, MAPE_VAL
 
 
 epochs1 = 80
-train_loss, val_loss = train_model(model, epochs=epochs1, train_dl=train_dl1, val_dl=val_dl1, optimizer=optimizer1,
+train_loss, val_loss, MAPE_TRAIN, MAPE_VAL = train_model(model, epochs=epochs1, train_dl=train_dl1, val_dl=val_dl1, optimizer=optimizer1,
                                    criterion=criterion1, lr_scheduler=lr_scheduler, mode = 'tuning')
 
 
@@ -248,25 +251,25 @@ plt.plot(val_loss,color='b', linewidth = 1, label = 'Validation Loss')
 plt.yscale('log')
 plt.ylabel('Loss (MSE)')
 plt.xlabel('Epoch')
-plt.xticks(np.arange(0, int(epochs1), 5))
+plt.xticks(np.arange(0, int(epochs1), 10))
 plt.grid(b=True, which='major', color='#666666', linestyle='-')
 plt.minorticks_on()
 plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.title("Multi-steps training VS Validation loss", size=15)
 plt.legend()
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year +'/LSTM_Train_VS_Val_LOSS({}_epochs_lr1_{}).png'.format(epochs1, lr1))
+# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year +'/LSTM_Train_VS_Val_LOSS({}_epochs_lr_{}_stepsize_{}).png'.format(epochs1, lr1, step_size1))
 plt.show()
 
 
 
 # ____________________________________________________SAVE THE MODEL____________________________________________________
-# torch.save(model.state_dict(), 'TL(2016_high)_train_on_' + period + '_' + year + '_lr_' + str(lr1) + '.pth')
+# torch.save(model.state_dict(), 'TL(2016_high)_train_on_' + period + '_' + year + '_lr_' + str(lr1) + '_stepsize_'+ str(step_size1) + '.pth')
 
 # ______________________________________________________________________________________________________________________
 
 
 # ___________________________________________________TESTING____________________________________________________________
-test_batch_size1 = 60
+test_batch_size1 = 120
 test_data1 = TensorDataset(test_X1, test_Y1)
 test_dl1 = DataLoader(test_data1, shuffle=False, batch_size=test_batch_size1, drop_last=True)
 # h = lstm.init_hidden(val_batch_size)
@@ -322,10 +325,10 @@ error1 = y_pred1 - yreal1
 plt.hist(error1, 100, linewidth=1.5, edgecolor='black', color='orange')
 plt.xticks(np.arange(-1, 0.6, 0.1))
 plt.xlim(-0.6, 0.6)
-plt.title('2001 testing: model prediction error')
+plt.title('TL: model prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_model_error({}_epochs_lr1_{}).png'.format(epochs1, lr1))
+# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_model_error({}_epochs_lr_{}_stepsize_{}).png'.format(epochs1, lr1, step_size1))
 plt.show()
 
 
@@ -337,9 +340,9 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlim(left=0, right=600)
 plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
-plt.title("2001 testing: real VS predicted temperature", size=15)
+plt.title("TL: real VS predicted temperature", size=15)
 plt.legend()
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_real_VS_predicted_temperature({}_epochs_lr1_{}).png'.format(epochs1, lr1))
+# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_real_VS_predicted_temperature({}_epochs_lr_{})_stepsize_{}).png'.format(epochs1, lr1, step_size1))
 plt.show()
 
 
@@ -361,7 +364,7 @@ plt.minorticks_on()
 plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlabel('Real Temperature [°C]')
 plt.ylabel('Predicted Temperature [°C]')
-plt.title("2001 testing: prediction distribution", size=15)
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year +'/LSTM_prediction_distribution({}_epochs_lr1_{}).png'.format(epochs1, lr1))
+plt.title("TL: prediction distribution", size=15)
+# plt.savefig('immagini/2016_high/TL/1_' + period + '_' + year + '/LSTM_prediction_distribution({}_epochs_lr_{})_stepsize_{}).png'.format(epochs1, lr1, step_size1))
 plt.show()
 

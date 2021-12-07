@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # value2 = value1 + np.random.uniform(size=20) / 4
 # df = pd.DataFrame({'group': list(map(int, range(1, 10))), 'value1': value1, 'value2': value2})
 
-df = pd.read_csv('month_cases1.csv', encoding='latin1', sep=';')
+df = pd.read_csv('month_cases.csv', encoding='latin1', sep=';')
 
 # Reorder it following the values of the first value:
 ordered_df = df.sort_values(by='cases')

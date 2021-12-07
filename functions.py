@@ -140,3 +140,9 @@ def split_multistep_sequences(sequences, n_steps):
 def mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+def mean_absolute_percentage_error_for_tensors(y_true, y_pred):
+    flatten = lambda l: [item for sublist in l for item in sublist]
+    y_true, y_pred = y_true.detach().numpy(),  y_pred.detach().numpy()
+    y_true, y_pred = np.array(flatten(y_true), dtype=float), np.array(flatten(y_pred), dtype=float)
+    return np.mean(np.abs((y_true - y_pred) / y_true)).mean() * 100

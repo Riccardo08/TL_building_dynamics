@@ -437,7 +437,6 @@ test_batch_size1 = 120
 test_data1 = TensorDataset(test_X1, test_Y1)
 test_dl1 = DataLoader(test_data1, shuffle=False, batch_size=test_batch_size1, drop_last=True)
 # test_losses1 = []
-# h = lstm.init_hidden(val_batch_size)
 
 y_pred1, yreal1 = test_model(model, test_dl1, max_T1, min_T1, test_batch_size1)
 

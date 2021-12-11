@@ -61,17 +61,21 @@ df_2016 = normalization(df_2016)
 
 def define_period(df, time):
     if time == 'week':
-        l_train = 1008
+        l_train = 1008+48
         l_val = int(l_train*2)
         df_def = df[:int(l_train*3)]
     if time == 'month':
         l_train = 4464
         l_val = int(l_train * 2)
         df_def = df[:int(l_train * 3)]
+    if time == 'year':
+        l_train = int(0.9 * len(df))  # 31536 (per un anno)
+        l_val = int(l_train + 0.05 * len(df))  # da 31536 a 42048, cioè 10512 valori (per un anno)
+        df_def = df
 
     return df_def, l_train, l_val
 
-df_2016, l_train, l_val = define_period(df_2016, time='month')
+df_2016, l_train, l_val = define_period(df_2016, time='week')
 
 # l_train = train_period(df_2016, 'week')
 # l_val = int(l_train + 0.3*len(df_2016))
@@ -175,20 +179,21 @@ n_outputs = 6
 
 # ____________________________________________________LOAD THE MODEL____________________________________________________
 model = LSTM(num_classes=n_outputs, input_size=n_features, hidden_size=num_hidden, num_layers=num_layers)
-period = 'month'
-year = '2015'
-model.load_state_dict(torch.load('train_on_month_2015_lr_0.009.pth'))
+# period = 'year'
+# year = '2015'
+# model_epochs = 100
+# model_lr = 0.009
+model.load_state_dict(torch.load('immagini/2016_high/TL/train_on_year_2015_epochs_80_lr_0.008_batch_400.pth'))
+# model.load_state_dict(torch.load('train_on_'+period+'_'+year+'_epochs_'+str(model_epochs)+'_lr_'+str(model_lr)+'.pth'))
 
-# TODO: abbassare il batch size ed aumentare le epoche
 # DEFINE CRITERION, OPTIMIZER WITH SMALLER LR RATE AND LR SCHEDULER_____________________________________________________
 criterion1 = torch.nn.MSELoss()
 # optimizer1 = torch.optim.SGD(model.parameters(), lr=lr)
-lr1 = 0.003
+lr1 = 0.004
 optimizer1 = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr1)
 # Decay LR (learning rate) by a factor of 0.1 every 7 epochs
-step_size1 = 7
-lr_scheduler = lr_scheduler.StepLR(optimizer1, step_size=step_size1, gamma=0.1, verbose=True) # gamma=0.1 by default
-
+step_size1 = 90
+lr_scheduler = lr_scheduler.StepLR(optimizer1, step_size=step_size1, gamma=0.1, verbose=True)  # gamma=0.1 by default
 
 # training function
 def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_scheduler, mode=''):
@@ -214,9 +219,9 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
             loss_c.backward()
             optimizer.step()
             loss.append(loss_c.item())
-            mape_train = mean_absolute_percentage_error_for_tensors(label.float(), output)
+            # mape_train = mean_absolute_percentage_error_for_tensors(label.float(), output)
         TRAIN_LOSS.append(np.sum(loss)/train_batch_size)
-        MAPE_TRAIN.append(mape_train)
+        # MAPE_TRAIN.append(mape_train)
         if mode == 'tuning':
             lr_scheduler.step()
         # print("Epoch: %d, training loss: %1.5f" % (train_episodes, LOSS[-1]))
@@ -229,21 +234,19 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
             val_output, h = model(inputs.float(), h)
             #val_labels = labels.unsqueeze(1) # CAPIRE SE METTERLO O NO
             val_loss_c = criterion(val_output, labels.float())
-            mape_val = mean_absolute_percentage_error_for_tensors(labels.float(), val_output)
+            # mape_val = mean_absolute_percentage_error_for_tensors(labels.float(), val_output)
             val_loss.append(val_loss_c.item())
         # VAL_LOSS.append(val_loss.item())
         VAL_LOSS.append(np.sum(val_loss)/val_batch_size)
-        MAPE_VAL.append(mape_val)
-        print('Epoch : ', t, 'Training Loss : ', TRAIN_LOSS[-1], 'Validation Loss :', VAL_LOSS[-1],
-              'Training MAPE :', MAPE_TRAIN[-1], 'Validation MAPE :', MAPE_VAL[-1])
+        # MAPE_VAL.append(mape_val)
+        print('Epoch : ', t, 'Training Loss : ', TRAIN_LOSS[-1], 'Validation Loss :', VAL_LOSS[-1])
 
-    return TRAIN_LOSS, VAL_LOSS, MAPE_TRAIN, MAPE_VAL
+    return TRAIN_LOSS, VAL_LOSS
 
 
-epochs1 = 80
-train_loss, val_loss, MAPE_TRAIN, MAPE_VAL = train_model(model, epochs=epochs1, train_dl=train_dl1, val_dl=val_dl1, optimizer=optimizer1,
+epochs1 = 250
+train_loss, val_loss = train_model(model, epochs=epochs1, train_dl=train_dl1, val_dl=val_dl1, optimizer=optimizer1,
                                    criterion=criterion1, lr_scheduler=lr_scheduler, mode = 'tuning')
-
 
 # Plot to verify validation and train loss, in order to avoid underfitting and overfitting
 plt.plot(train_loss,'--',color='r', linewidth = 1, label = 'Train Loss')
@@ -257,13 +260,18 @@ plt.minorticks_on()
 plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.title("Multi-steps training VS Validation loss", size=15)
 plt.legend()
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year +'/LSTM_Train_VS_Val_LOSS({}_epochs_lr_{}_stepsize_{}).png'.format(epochs1, lr1, step_size1))
+# plt.savefig('immagini/2016_high/TL/year_2015_to_week_2016/LSTM_Train_VS_Val_LOSS(lr_{}_stepsize_{}_epochs_{}).png'.format(str(lr1), str(step_size1), str(epochs1)))
 plt.show()
 
 
 
 # ____________________________________________________SAVE THE MODEL____________________________________________________
-# torch.save(model.state_dict(), 'TL(2016_high)_train_on_' + period + '_' + year + '_lr_' + str(lr1) + '_stepsize_'+ str(step_size1) + '.pth')
+test_period = 'week'
+train_year = '2015'
+test_year = '2016'
+# torch.save(model.state_dict(), 'immagini/2016_high/TL/weights/'+test_period+'/TL(2016_high)_train_on_{}_test_on_{}_{}(lr_{}_step_size{}_epochs_{})'.format(train_year, test_period, test_year, str(lr1), str(step_size1), str(epochs1)))
+
+# torch.save(model.state_dict(), 'immagini/2016_high/TL/weights/month/TL(2016_high)_train_on_' + train_year + '_test_on_' + period + '_' + test_year + '_lr_' + str(lr1) + '_stepsize_'+ str(step_size1) + '.pth')
 
 # ______________________________________________________________________________________________________________________
 
@@ -279,6 +287,8 @@ def test_model(model, test_dl, maxT, minT, batch_size):
     h = model.init_hidden(batch_size)
     y_pred = []
     y_lab = []
+    y_pred6 = []
+    y_lab6 = []
 
     for inputs, labels in test_dl:
         h = tuple([each.data for each in h])
@@ -306,10 +316,12 @@ def test_model(model, test_dl, maxT, minT, batch_size):
 
         y_pred.append(test_output[:, 0]) # test_output[0] per appendere solo il primo dei valori predetti ad ogni step
         y_lab.append(labels[:, 0]) # labels[0] per appendere solo il primo dei valori predetti ad ogni step
-    return y_pred, y_lab
+        y_pred6.append(test_output[:, 5])
+        y_lab6.append(labels[:, 5])
+    return y_pred, y_lab, y_pred6, y_lab6
 
 
-y_pred1, yreal1 = test_model(model, test_dl1, max_T1, min_T1, test_batch_size1)
+y_pred1, yreal1, y_pred6, y_lab6 = test_model(model, test_dl1, max_T1, min_T1, test_batch_size1)
 
 
 flatten = lambda l: [item for sublist in l for item in sublist]
@@ -317,6 +329,17 @@ y_pred1 = flatten(y_pred1)
 yreal1 = flatten(yreal1)
 y_pred1 = np.array(y_pred1, dtype=float)
 yreal1 = np.array(yreal1, dtype = float)
+#
+# y_pred6 = flatten(y_pred6)
+# y_lab6 = flatten(y_lab6)
+# y_pred6 = np.array(y_pred6, dtype=float)
+# y_lab6 = np.array(y_lab6, dtype=float)
+#
+# # Shift values of 6 positions because it's the sixth hour
+# y_pred6 = pd.DataFrame(y_pred6)
+# y_pred6 = y_pred6.shift(6, axis=0)
+# y_lab6 = pd.DataFrame(y_lab6)
+# y_lab6 = y_pred6.shift(6, axis=0)
 
 
 error1 = []
@@ -328,12 +351,14 @@ plt.xlim(-0.6, 0.6)
 plt.title('TL: model prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_model_error({}_epochs_lr_{}_stepsize_{}).png'.format(epochs1, lr1, step_size1))
+# plt.savefig('immagini/2016_high/TL/year_2015_to_week_2016/LSTM_model_error(lr_{}_stepsize_{}_epochs_{}).png'.format(str(lr1), str(step_size1), str(epochs1)))
 plt.show()
 
 
 plt.plot(y_pred1, color='orange', label="Predicted")
 plt.plot(yreal1, color="b", linestyle="dashed", linewidth=1, label="Real")
+# plt.plot(y_pred6, color='green', label="Predicted6")
+# plt.plot(y_lab6, color="b", linewidth=1, label="Real6")# , linestyle="purple"
 plt.grid(b=True, which='major', color='#666666', linestyle='-')
 plt.minorticks_on()
 plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
@@ -342,7 +367,7 @@ plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
 plt.title("TL: real VS predicted temperature", size=15)
 plt.legend()
-# plt.savefig('immagini/2016_high/TL/1_'+ period + '_' + year + '/LSTM_real_VS_predicted_temperature({}_epochs_lr_{})_stepsize_{}).png'.format(epochs1, lr1, step_size1))
+# plt.savefig('immagini/2016_high/TL/year_2015_to_week_2016/LSTM_real_VS_predicted_temperature(lr_{}_stepsize_{}_epochs_{}).png'.format(str(lr1), str(step_size1), str(epochs1)))
 plt.show()
 
 
@@ -365,6 +390,11 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlabel('Real Temperature [°C]')
 plt.ylabel('Predicted Temperature [°C]')
 plt.title("TL: prediction distribution", size=15)
-# plt.savefig('immagini/2016_high/TL/1_' + period + '_' + year + '/LSTM_prediction_distribution({}_epochs_lr_{})_stepsize_{}).png'.format(epochs1, lr1, step_size1))
+# plt.savefig('immagini/2016_high/TL/year_2015_to_week_2016/LSTM_prediction_distribution(lr_{}_stepsize_{}_epochs_{}).png'.format(str(lr1), str(step_size1), str(epochs1)))
 plt.show()
+
+
+
+
+
 

@@ -58,6 +58,13 @@ df = import_file(year, eff='')
 
 max_T, min_T = min_max_T(df=df, column='CONFROOM_BOT_1 ZN:Zone Mean Air Temperature[C]')
 
+# # Temperature plot
+# plt.plot(df[1056:2112, -1])#'CONFROOM_BOT_1 ZN:Zone Mean Air Temperature[C]'
+# plt.xlim(0, 600)
+# plt.title('Mean zone air temperature [°C]', size=15)
+# plt.show()
+
+
 df = normalization(df)
 
 # ______________________________________________________________________________________________________________________
@@ -69,22 +76,27 @@ df = normalization(df)
 
 def define_period(df, time):
     if time == 'week':
-        l_train = 1008
+        l_train = 1008+48
         l_val = int(l_train*2)
         df_def = df[:int(l_train*3)]
     if time == 'month':
         l_train = 4464
         l_val = int(l_train * 2)
         df_def = df[:int(l_train * 3)]
+    if time == 'year':
+        l_train = int(0.9 * len(df))  # 31536 (per un anno)
+        l_val = int(l_train + 0.05 * len(df))  # da 31536 a 42048, cioè 10512 valori (per un anno)
+        df_def = df
 
     return df_def, l_train, l_val
 
 # time = 'month'
 df, l_train, l_val = define_period(df, time='month')
 
+
 # ______________________________________Datasets_preprocessing__________________________________________________________
 period = 6
-# l_train = int(0.6 * len(df)) # 31536 (per un anno)
+# l_train = int(0.8 * len(df)) # 31536 (per un anno)
 # l_val = int(l_train + 0.2*len(df)) # da 31536 a 42048, cioè 10512 valori (per un anno)
 # l_val = int(l_train+0.05*len(df)) # da 31536 a 42048, cioè 10512 valori (per un anno)
 
@@ -175,11 +187,11 @@ n_timesteps = train_X.shape[1]
 n_outputs = train_Y.shape[1]
 
 # __________________________________________________TRAINING PHASE______________________________________________________
-train_batch_size = 120
+train_batch_size =240
 train_data = TensorDataset(train_X, train_Y)
 train_dl = DataLoader(train_data, batch_size=train_batch_size, shuffle=False, drop_last=True)
 
-val_batch_size = 120
+val_batch_size = 240
 val_data = TensorDataset(val_X, val_Y)
 val_dl = DataLoader(val_data, batch_size=val_batch_size, shuffle=False, drop_last=True)
 
@@ -231,9 +243,10 @@ def train_model(model, epochs, train_dl, val_dl, optimizer, criterion, lr_schedu
 
     return TRAIN_LOSS, VAL_LOSS
 
-epochs = 130
+epochs = 110
 train_loss, val_loss = train_model(lstm, epochs=epochs, train_dl=train_dl, val_dl=val_dl, optimizer=optimizer,
                                    criterion=criterion, lr_scheduler='', mode='')
+
 
 # Plot to verify validation and train loss, in order to avoid underfitting and overfitting
 plt.plot(train_loss,'--',color='r', linewidth = 1, label = 'Train Loss')
@@ -251,28 +264,36 @@ plt.legend()
 plt.show()
 
 
+
 # ____________________________________________________SAVE THE MODEL____________________________________________________
-period = 'month'
-torch.save(lstm.state_dict(), 'train_on_' + period + '_' + year + '_lr_' + str(lr) + '.pth')
+# period = 'year'
+# year = '2015'
+# torch.save(lstm.state_dict(), 'train_on_' + period + '_' + str(year) + '_epochs_'+str(epochs)+'_lr_' + str(lr) + '.pth')
+# torch.save(lstm.state_dict(), 'train_on_year_2015_epochs_150_lr_0.008.pth')
 
 # Load a model
-model = LSTM(num_classes=n_outputs, input_size=n_features, hidden_size=num_hidden, num_layers=num_layers)
-model.load_state_dict(torch.load('train_on_month_2015_lr_0.009.pth'))
-
+# model = LSTM(num_classes=n_outputs, input_size=n_features, hidden_size=num_hidden, num_layers=num_layers)
+# period = 'week'
+# year = '2015'
+# model_epochs = 190
+# model_lr = 0.009
+# model.load_state_dict(torch.load('train_on_'+period+'_'+year+'_epochs_'+str(model_epochs)+'_lr_'+str(model_lr)+'.pth'))
+# model.load_state_dict(torch.load('train_on_year_2015_epochs_100_lr_0.009.pth'))
 
 # __________________________________________________6h PREDICTION TESTING_______________________________________________
 
-test_batch_size = 120 # devo mettere il batch ad 1 perchè così ad ogni batch mi appendo il primo dei 6 valori predetti
+test_batch_size = 240 # devo mettere il batch ad 1 perchè così ad ogni batch mi appendo il primo dei 6 valori predetti
 test_data = TensorDataset(test_X, test_Y)
 test_dl = DataLoader(test_data, shuffle=False, batch_size=test_batch_size, drop_last=True)
-# test_losses = []
-# h = lstm.init_hidden(val_batch_size)
+
 
 def test_model(model, test_dl, maxT, minT, batch_size):
     model.eval()
     h = model.init_hidden(batch_size)
     y_pred = []
     y_lab = []
+    y_lab6 = []
+    y_pred6 = []
 
     for inputs, labels in test_dl:
         h = tuple([each.data for each in h])
@@ -300,10 +321,12 @@ def test_model(model, test_dl, maxT, minT, batch_size):
 
         y_pred.append(test_output[:, 0]) # test_output[0] per appendere solo il primo dei valori predetti ad ogni step
         y_lab.append(labels[:, 0]) # labels[0] per appendere solo il primo dei valori predetti ad ogni step
-    return y_pred, y_lab
+        y_pred6.append(test_output[:, 5])
+        y_lab6.append(labels[:, 5])
+    return y_pred, y_lab, y_pred6, y_lab6
 
 
-y_pred, y_lab = test_model(model=lstm, test_dl=test_dl, maxT=max_T, minT=min_T, batch_size=test_batch_size)
+y_pred, y_lab, y_pred6, y_lab6 = test_model(model=lstm, test_dl=test_dl, maxT=max_T, minT=min_T, batch_size=test_batch_size)
 
 
 flatten = lambda l: [item for sublist in l for item in sublist]
@@ -311,6 +334,18 @@ y_pred = flatten(y_pred)
 y_lab = flatten(y_lab)
 y_pred = np.array(y_pred, dtype=float)
 y_lab = np.array(y_lab, dtype=float)
+
+# y_pred6 = flatten(y_pred6)
+# y_lab6 = flatten(y_lab6)
+# y_pred6 = np.array(y_pred6, dtype=float)
+# y_lab6 = np.array(y_lab6, dtype=float)
+#
+# # Shift values of 6 positions because it's the sixth hour
+# y_pred6 = pd.DataFrame(y_pred6)
+# y_pred6 = y_pred6.shift(6, axis=0)
+# y_lab6 = pd.DataFrame(y_lab6)
+# y_lab6 = y_pred6.shift(6, axis=0)
+
 
 
 error = []
@@ -322,12 +357,14 @@ plt.xlim(-0.6, 0.6)
 plt.title('LSTM model 6h prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-# plt.savefig('immagini/2015/1_month/LSTM_model_error(lr_{}).png'.format(lr))
+# plt.savefig('immagini/2015/1_year/LSTM_model_error({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 
 plt.plot(y_pred, color='orange', label="Predicted")
 plt.plot(y_lab, color="b", linestyle="dashed", linewidth=1, label="Real")
+# plt.plot(y_pred6, color='green', label="Predicted6")
+# plt.plot(y_lab6, color="b", linewidth=1, label="Real6")# , linestyle="purple"
 plt.grid(b=True, which='major', color='#666666', linestyle='-')
 plt.minorticks_on()
 plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
@@ -336,7 +373,7 @@ plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
 plt.title("6h prediction: Real VS predicted temperature", size=15)
 plt.legend()
-# plt.savefig('immagini/2015/1_month/LSTM_real_VS_predicted_temperature(lr_{}).png'.format(lr))
+# plt.savefig('immagini/2015/1_year/LSTM_real_VS_predicted_temperature({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 
@@ -360,7 +397,7 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlabel('Real Temperature [°C]')
 plt.ylabel('Predicted Temperature [°C]')
 plt.title("6h prediction: Prediction distribution", size=15)
-# plt.savefig('immagini/2015/1_month/LSTM_prediction_distribution(lr_{}).png'.format(lr))
+# plt.savefig('immagini/2015/1_year/LSTM_prediction_distribution({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 
@@ -383,9 +420,8 @@ df_2016 = normalization(df_2016)
 # df_2016 = df_2016[:13248] # Solo Gennaio 2016
 # ______________________________________Datasets_preprocessing__________________________________________________________
 period = 6
-df_2016, l_train, l_val = define_period(df_2016, time='month')
+df_2016, l_train, l_val = define_period(df_2016, time='year')
 
-# l_train = train_period(df_2016, 'week')
 # l_val = int(l_train + 0.3*len(df_2016))
 # l_val = 0 # da 31536 a 42048, cioè 10512 valori (per un anno)
 
@@ -417,14 +453,14 @@ print(type(val_Y1), val_Y1.shape)
 print(type(test_X1), test_X1.shape)
 print(type(test_Y1), test_Y1.shape)
 
-
-train_batch_size = 60
-train_data1 = TensorDataset(train_X1, train_Y1)
-train_dl1 = DataLoader(train_data1, batch_size=train_batch_size, shuffle=True, drop_last=True)
-
-val_batch_size = 60
-val_data1 = TensorDataset(val_X1, val_Y1)
-val_dl1 = DataLoader(val_data1, batch_size=val_batch_size, shuffle=True, drop_last=True)
+#
+# train_batch_size = 60
+# train_data1 = TensorDataset(train_X1, train_Y1)
+# train_dl1 = DataLoader(train_data1, batch_size=train_batch_size, shuffle=True, drop_last=True)
+#
+# val_batch_size = 60
+# val_data1 = TensorDataset(val_X1, val_Y1)
+# val_dl1 = DataLoader(val_data1, batch_size=val_batch_size, shuffle=True, drop_last=True)
 
 
 # generalize the number of features and the number of timesteps by linking them to the preprocessing
@@ -433,7 +469,7 @@ n_features = test_X1.shape[2]
 
 
 # ___________________________________________________TESTING____________________________________________________________
-test_batch_size1 = 120
+test_batch_size1 = 400
 test_data1 = TensorDataset(test_X1, test_Y1)
 test_dl1 = DataLoader(test_data1, shuffle=False, batch_size=test_batch_size1, drop_last=True)
 # test_losses1 = []
@@ -454,10 +490,10 @@ error1 = y_pred1 - yreal1
 plt.hist(error1, 100, linewidth=1.5, edgecolor='black', color='orange')
 plt.xticks(np.arange(-1, 0.6, 0.1))
 plt.xlim(-0.6, 0.6)
-plt.title('2001 testing: model prediction error')
+plt.title('testing: model prediction error')
 # plt.xlabel('Error')
 plt.grid(True)
-# plt.savefig('immagini/2015/1_month/test_on_1_month_2016/LSTM_model_error(lr_{}).png'.format(lr))
+plt.savefig('immagini/2015/1_year/test_on_1_month_2016/LSTM_model_error({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 
@@ -469,9 +505,9 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlim(left=0, right=600)
 plt.ylabel('Mean Air Temperature [°C]')
 plt.xlabel('Time [h]')
-plt.title("2001 testing: real VS predicted temperature", size=15)
+plt.title("testing: real VS predicted temperature", size=15)
 plt.legend()
-# plt.savefig('immagini/2015/1_month/test_on_1_month_2016/LSTM_real_VS_predicted_temperature(lr_{}).png'.format(lr))
+plt.savefig('immagini/2015/1_year/test_on_1_month_2016/LSTM_real_VS_predicted_temperature({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 
@@ -494,7 +530,7 @@ plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 plt.xlabel('Real Temperature [°C]')
 plt.ylabel('Predicted Temperature [°C]')
 plt.title("2001 testing: prediction distribution", size=15)
-# plt.savefig('immagini/2015/1_month/test_on_1_month_2016/LSTM_prediction_distribution(lr_{}).png'.format(lr))
+plt.savefig('immagini/2015/1_year/test_on_1_month_2016/LSTM_prediction_distribution({}_epochs_lr_{}).png'.format(epochs, lr))
 plt.show()
 
 

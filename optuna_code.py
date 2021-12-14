@@ -205,7 +205,6 @@ def define_model(trial, batch_size):
 
 
 
-# TODO: vedere se cambiare o meno il batch
 
 def objective(trial):
 

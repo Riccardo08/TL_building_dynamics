@@ -46,6 +46,8 @@ import openpyxl
 from functions import import_file, min_max_T, normalization, create_data, split_multistep_sequences, mean_absolute_percentage_error
 import optuna
 from optuna.trial import TrialState
+import plotly
+
 # ___________________________________________IMPORT AND NORMALIZATION___________________________________________________
 year = '2015'
 # list_3_years = ['1990', '1991', '1992']
@@ -136,7 +138,7 @@ print(type(test_Y), test_Y.shape)
 def define_model(trial, batch_size):
 
     num_layers = trial.suggest_int("n_layers", 3, 9, step=3)
-    num_hidden =  trial.suggest_int("n_hidden", 10, 30, step=10)
+    num_hidden = trial.suggest_int("n_hidden", 10, 30, step=10)
 
     class LSTM(nn.Module):
 
@@ -328,6 +330,11 @@ if __name__ == "__main__":
     print("  Params: ")
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
+
+    fig1 = optuna.visualization.plot_param_importances(study)
+    fig1.show()
+    fig2 = optuna.visualization.plot_slice(study)
+    fig2.show()
 
 
 
